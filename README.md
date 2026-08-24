@@ -66,3 +66,10 @@ Detection performance depends on the trained model, training data, image quality
 
 The trained YOLOv8 model file and original dataset are not included in this repository because of file size and repository management considerations.
 
+## Screenshots
+
+![Project Interface](Screenshot%20%28156%29.png)
+
+![Detection Result](Screenshot%20%28161%29.png)
+
+![Detection Output](Screenshot%20%28163%29.png)
