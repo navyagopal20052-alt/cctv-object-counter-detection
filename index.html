@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Secure CCTV — Demo Dashboard</title>
+  <style>
+    /* DARK THEME (you selected) */
+    :root{
+      --bg:#07080a; --card:#0b0d11; --muted:#9fb7d9; --accent:#ff3b3b;
+      --green:#28c028; --red:#ff3b3b; --panel:#0f1720;
+    }
+    body{margin:0;font-family:Inter,Segoe UI,Arial;background:linear-gradient(180deg,#050606,#0a0b0d); color:#e6eef6;}
+    .wrap{max-width:1200px;margin:24px auto;padding:18px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:12px; padding:18px; box-shadow:0 8px 30px rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.03);}
+    header{display:flex;align-items:center;gap:16px;margin-bottom:12px}
+    .logo{width:72px;height:72px;background:linear-gradient(135deg,#ff7a18,#af002d);border-radius:12px;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:20px;}
+    h1{margin:0;font-size:22px;color:#ffdcdc}
+    p.lead{margin:2px 0 0 0;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:420px 1fr;gap:16px;margin-top:12px;align-items:start}
+    .left{display:flex;flex-direction:column;gap:12px}
+    input[type=file]{background:transparent;color:#fff;padding:12px;border-radius:8px;border:1px dashed rgba(255,255,255,0.06);width:100%}
+    button{background:var(--accent);color:white;padding:12px 14px;border-radius:10px;border:none;font-weight:700;cursor:pointer}
+    button:disabled{opacity:0.5;cursor:not-allowed}
+    .status{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;font-weight:700;color:var(--muted)}
+    .stats{display:flex;gap:10px;margin-top:8px}
+    .stat{background:rgba(255,255,255,0.02);padding:10px 12px;border-radius:8px;min-width:120px;text-align:center}
+    .num{font-size:20px;font-weight:800;color:#ffdcdc}
+    .danger{color:#ffb3b3;font-weight:900}
+    .video-card{background:black;border-radius:8px;overflow:hidden}
+    video{width:100%; height:auto; display:block; background:#000}
+    .footer{margin-top:12px;color:#bcd7ff;font-size:13px;opacity:0.9}
+    table{width:100%;border-collapse:collapse;color:#dbeafe}
+    th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left}
+    th{color:#93c5fd}
+    .alert-bar{display:none;position:fixed;left:50%;transform:translateX(-50%);top:18px;background:#b91c1c;color:white;padding:14px 24px;border-radius:8px;font-weight:900;box-shadow:0 8px 30px rgba(185,28,28,0.2);z-index:9999}
+    .blink{animation:blinkAnim 900ms linear infinite}
+    @keyframes blinkAnim{0%{opacity:1}50%{opacity:0.2}100%{opacity:1}}
+    /* responsive */
+    @media (max-width: 900px){.grid{grid-template-columns:1fr}.logo{display:none}}
+  </style>
+</head>
+<body>
+  <div class="wrap card">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <div class="logo">CCTV</div>
+      <div>
+        <h1>Secure CCTV — Detection & Analysis</h1>
+        <p class="lead">Offline model (local). Emergency boxes = <span style="color:#ffb3b3">red</span>, safe = <span style="color:#9ff59f">green</span>.</p>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:14px;">
+      <div class="left">
+        <div class="card">
+          <label style="font-weight:800;display:block;margin-bottom:8px">1) Choose a video file (max 50 MB)</label>
+          <input type="file" id="videoInput" accept="video/*">
+          <div style="margin-top:12px;display:flex;gap:10px">
+            <button id="uploadBtn">Upload & Process</button>
+            <button id="clearBtn">Clear</button>
+          </div>
+          <div style="margin-top:12px" class="status" id="status">Status: Ready. Backend server must be running at <code>http://127.0.0.1:5000</code></div>
+
+          <div class="stats" style="margin-top:12px">
+            <div class="stat"><div style="font-size:12px;color:#cfe7ff">Frames</div><div class="num" id="frames">-</div></div>
+            <div class="stat"><div style="font-size:12px;color:#cfe7ff">Detections</div><div class="num" id="detections">-</div></div>
+            <div class="stat"><div style="font-size:12px;color:#cfe7ff">Emergencies</div><div class="num danger" id="emergencies">-</div></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h3 style="margin:0 0 8px 0">Detections (table)</h3>
+          <div style="max-height:220px;overflow:auto">
+            <table id="detTable">
+              <thead><tr><th>Object</th><th>Count</th><th>Risk</th></tr></thead>
+              <tbody><tr><td colspan="3" style="opacity:0.6">No results yet</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div>
+  <div id="alertBar" class="alert-bar">⚠️ EMERGENCY DETECTED</div>
+  
+     <div class="video-card" style="width:100%">
+     <!-- FULL WIDTH video -->
+     <video id="outVideo" controls playsinline
+      style="width:100%; background:black; max-height:550px; object-fit:contain;">
+     </video>
+  </div>
+
+  <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+    <button id="downloadBtn" style="display:none">Download Processed Video</button>
+    <div style="color:#93c5fd;font-size:13px">Processed video will appear here after backend finishes.</div>
+  </div>
+
+  <div class="footer">Note: delete temporary output files in backend/static/ to free disk space after demo.</div>
+</div>
+
+
+  <audio id="alertSound">
+  <source src="assets/audio/alert_bell.wav" type="audio/wav">
+</audio>
+
+
+
+  <script>
+    const API_BASE = "http://127.0.0.1:5000";
+    const videoInput = document.getElementById("videoInput");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const statusEl = document.getElementById("status");
+    const framesEl = document.getElementById("frames");
+    const detEl = document.getElementById("detections");
+    const emergEl = document.getElementById("emergencies");
+    const detTable = document.getElementById("detTable").getElementsByTagName("tbody")[0];
+    const outVideo = document.getElementById("outVideo");
+    const alertBar = document.getElementById("alertBar");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const alertSound = document.getElementById("alertSound");
+
+    let alertPlayed = false;
+
+    function showAlertBar(text) {
+      alertBar.textContent = text;
+      alertBar.style.display = "block";
+      alertBar.classList.add("blink");
+      setTimeout(()=>{ alertBar.classList.remove("blink"); }, 4000);
+    }
+    function hideAlertBar() {
+      alertBar.style.display = "none";
+    }
+
+    function beepOnceFallback(){
+      try{
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "sine";
+        o.frequency.value = 880;
+        g.gain.value = 0.12;
+        o.connect(g); g.connect(ctx.destination);
+        o.start();
+        setTimeout(()=>{ o.stop(); ctx.close(); }, 700);
+      }catch(e){ console.warn("Audio fallback failed", e); }
+    }
+
+    uploadBtn.addEventListener("click", async ()=>{
+      if (!videoInput.files || videoInput.files.length === 0) {
+        alert("Please select a video file first (max 50MB).");
+        return;
+      }
+      const file = videoInput.files[0];
+      if (file.size > 50 * 1024 * 1024) {
+        alert("File too large. Max 50 MB.");
+        return;
+      }
+
+      statusEl.textContent = "Status: Uploading video...";
+      uploadBtn.disabled = true; clearBtn.disabled = true;
+      hideAlertBar();
+      alertPlayed = false;
+      downloadBtn.style.display = "none";
+
+      const fd = new FormData();
+      fd.append("video", file);
+
+      try {
+        const resp = await fetch(API_BASE + "/process_video", { method: "POST", body: fd });
+        if (!resp.ok) {
+          const t = await resp.text();
+          throw new Error("Server error: " + resp.status + " - " + t);
+        }
+        const j = await resp.json();
+
+        // update UI stats
+        framesEl.textContent = j.processed_frames ?? "-";
+        detEl.textContent = j.total_detections ?? "-";
+        emergEl.textContent = j.emergency_detections ?? "-";
+
+        // update detections table
+        detTable.innerHTML = "";
+        const counts = j.counts_per_class || {};
+        if (Object.keys(counts).length === 0) {
+          detTable.innerHTML = "<tr><td colspan='3' style='opacity:0.6'>No detections</td></tr>";
+        } else {
+          for (const [k,v] of Object.entries(counts)) {
+            const isRisk = (j.emergencies || []).some(e=> e.toLowerCase() === k.toLowerCase());
+            const row = document.createElement("tr");
+            row.innerHTML = `<td>${k}</td><td>${v}</td><td style="color:${isRisk? '#ffb3b3':'#9ff59f'}">${isRisk? 'EMERGENCY':'normal'}</td>`;
+            detTable.appendChild(row);
+          }
+        }
+
+        // set video player src (static route)
+        // SET video player with STATIC url
+       // set video player src (static route)
+const filename = j.annotated_url.split("/").pop();
+const staticURL = "http://127.0.0.1:5000/static/" + filename;
+outVideo.src = staticURL;
+outVideo.load();
+outVideo.play().catch(()=>{});
+
+// show download button
+// show download button
+downloadBtn.style.display = "inline-block";
+downloadBtn.onclick = async () => {
+  try {
+    const res = await fetch(staticURL);
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch(e) {
+    alert("Download failed: " + e);
+  }
+};
+
+
+        // emergency alert behavior: show big top bar + play sound once
+        if (j.emergencies && j.emergencies.length > 0) {
+          showAlertBar("⚠️ EMERGENCY DETECTED: " + j.emergencies.join(", "));
+          // try to play provided mp3; if blocked fallback to beep
+          try {
+            alertSound.currentTime = 0;
+            alertSound.play().catch(()=> beepOnceFallback());
+          } catch (e) {
+            beepOnceFallback();
+          }
+        } else {
+          hideAlertBar();
+        }
+
+        statusEl.textContent = "Status: Processing complete.";
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Error: " + err.message;
+        alert("Error: " + err.message);
+      } finally {
+        uploadBtn.disabled = false; clearBtn.disabled = false;
+      }
+    });
+
+    clearBtn.addEventListener("click", ()=>{
+      videoInput.value = "";
+      outVideo.src = "";
+      statusEl.textContent = "Status: Ready. Backend server must be running at http://127.0.0.1:5000";
+      framesEl.textContent = "-"; detEl.textContent = "-"; emergEl.textContent = "-";
+      detTable.innerHTML = "<tr><td colspan='3' style='opacity:0.6'>No results yet</td></tr>";
+      downloadBtn.style.display = "none";
+      hideAlertBar();
+    });
+
+    window.onload = ()=> {
+      statusEl.textContent = "Status: Ready. Backend server must be running at http://127.0.0.1:5000";
+    };
+  </script>
+</body>
+</html>
+
+
